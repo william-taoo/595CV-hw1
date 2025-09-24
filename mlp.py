@@ -1,5 +1,6 @@
 import math
 import random
+import numpy as np
 
 def random_matrix(rows, cols, lower=-0.5, higher=0.5):
     # Randomly initialize a matrix
@@ -71,9 +72,22 @@ def accuracy(model, X, Y):
 
     return correct / len(X) 
 
+def split_dataset(dataset, split):
+    data_copy = dataset[:]
+    random.shuffle(data_copy)
+    cutoff = int(len(data_copy) * split)
+    train_set = data_copy[:cutoff]
+    test_set = data_copy[cutoff:]
+
+    return train_set, test_set
+
 class MLP:
-    def __init__(self, input_dim, output_dim, hidden_layers, learning_rate=0.1):
+    def __init__(self, input_dim, output_dim, hidden_layers, learning_rate):
         self.learning_rate = learning_rate
+
+        if isinstance(hidden_layers, int):
+            hidden_layers = [hidden_layers]
+
         self.layers = [input_dim] + hidden_layers + [output_dim]
         self.weights = []
         self.biases = []
@@ -128,7 +142,7 @@ class MLP:
                     self.weights[l][i][j] -= self.learning_rate * deltas[l][i] * activations[l][j]
                 self.biases[l][i] -= self.learning_rate * deltas[l][i]
 
-    def train(self, X, Y, epochs=1000):
+    def train(self, X, Y, epochs):
         for epoch in range(epochs):
             total_loss = 0.0
             for x, y in zip(X, Y):
@@ -152,23 +166,61 @@ class MLP:
         return activations[-1]    
     
 if __name__ == "__main__":
-    dataset = xor_dataset()
-    # dataset = two_bit_adder_dataset()
+    # Run through different splits and hyperparameters
+    datasets = {
+        "xor": xor_dataset(),
+        "adder": two_bit_adder_dataset()
+    }
+    splits = [0.6, 0.7, 0.8]
+    learning_rates = [0.01, 0.1, 0.5]
+    hidden_sizes = [[3], [6, 4], [3, 4]]
+    epochs = [1000, 5000, 10000]
 
+    hyperparameters = list(zip(splits, learning_rates, hidden_sizes, epochs))
+
+    for dataset_name, dataset in datasets.items():
+        print("Running dataset:", dataset_name)
+
+        for split, lr, h, epoch in hyperparameters:
+            print(f"Running train split={split}, lr={lr}, hidden={h}, epochs={epoch}")
+
+            train_set, test_set = split_dataset(dataset, split)
+            X_train = [x for x, y in train_set]
+            Y_train = [y for x, y in train_set]
+            X_test = [x for x, y in test_set]
+            Y_test = [y for x, y in test_set]    
+                        
+            if dataset_name == "xor":
+                model = MLP(input_dim=2, output_dim=1, hidden_layers=h, learning_rate=lr)
+            else:
+                model = MLP(input_dim=5, output_dim=3, hidden_layers=h, learning_rate=lr)
+
+            model.train(X_train, Y_train, epoch)
+            
+            # Test
+            print("\nTesting:")
+            acc = accuracy(model, X_test, Y_test)
+            print(f"Accuracy: {acc:.2f}")
+
+    print("Testing accuracy is bad because dataset size is small")
+    print("Training/Testing on all data...")
+
+    print("XOR dataset:")
+    dataset = xor_dataset()
     X = [x for x, y in dataset]
     Y = [y for x, y in dataset]
 
-    # Initialize MLP
-    if dataset == xor_dataset():
-        mlp = MLP(input_dim=2, output_dim=1, hidden_layers=[3], learning_rate=0.5)
-    else:
-        mlp = MLP(input_dim=5, output_dim=3, hidden_layers=[6, 4], learning_rate=0.3)
+    model = MLP(input_dim=2, output_dim=1, hidden_layers=[3], learning_rate=0.5)
+    model.train(X, Y, 10000)
+    acc = accuracy(model, X, Y)
+    print(f"Accuracy: {acc:.2f}")
 
-    # Train
-    mlp.train(X, Y, epochs=10000)
-
-    # Test
-    print("\nTesting:")
-    for x, y in dataset:
-        pred = mlp.predict(x)
-        print(f"Input: {x}, Predicted: {[round(p) for p in pred]}, Actual: {y}")
+    print("Adder dataset:")
+    dataset = two_bit_adder_dataset()
+    X = [x for x, y in dataset]
+    Y = [y for x, y in dataset]
+    
+    model = MLP(input_dim=5, output_dim=3, hidden_layers=[6, 4], learning_rate=0.3)
+    model.train(X, Y, 10000)
+    acc = accuracy(model, X, Y)
+    print(f"Accuracy: {acc:.2f}")
